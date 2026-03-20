@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+
+  # -------------------------------------------------------
+  # Banco de Dados PostgreSQL
+  # -------------------------------------------------------
+  db:
+    image: postgres:16
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Porta 5432 NÃO exposta ao host — acessível apenas internamente
+    networks:
+      - app_network
+
+  # -------------------------------------------------------
+  # Orquestrador de Workflows (n8n)
+  # -------------------------------------------------------
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n_app
+    restart: always
+    environment:
+      - N8N_HOST=${DOMAIN_NAME}
+      - N8N_PROTOCOL=https
+      - NODE_ENV=production
+      - WEBHOOK_URL=https://${DOMAIN_NAME}/
+      # Conexão com o PostgreSQL como banco do próprio n8n
+      - DB_TYPE=postgresdb
+      - DB_POSTGRESDB_DATABASE=${DB_NAME}
+      - DB_POSTGRESDB_HOST=db
+      - DB_POSTGRESDB_PORT=5432
+      - DB_POSTGRESDB_USER=${DB_USER}
+      - DB_POSTGRESDB_PASSWORD=${DB_PASSWORD}
+    depends_on:
+      - db
+    networks:
+      - app_network
+
+  # -------------------------------------------------------
+  # Proxy Reverso com HTTPS automático (Caddy)
+  # -------------------------------------------------------
+  caddy:
+    image: caddy:latest
+    container_name: caddy_proxy
+    restart: always
+    ports:
+      - "80:80"     # HTTP (redirecionado para HTTPS automaticamente)
+      - "443:443"   # HTTPS com certificado Let's Encrypt
+    command: caddy reverse-proxy --from ${DOMAIN_NAME} --to n8n:5678
+    networks:
+      - app_network
+
+# -------------------------------------------------------
+# Volumes e Redes
+# -------------------------------------------------------
+volumes:
+  postgres_data:
+
+networks:
+  app_network:
+    driver: bridge

@@ -1,0 +1,200 @@
+{
+  "name": "Automação Condomob x BotConversa",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "consulta-boleto",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "4168be84-ff08-4c8d-870f-e7b6d440ea50",
+      "name": "Webhook - BotConversa",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -752,
+        -128
+      ],
+      "webhookId": "e6b8664b-8414-419c-81e6-8af7026b88ea"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id_unidade, id_condominio, cpf_cnpj, nome_morador \nFROM public.cadastro_unidades \nWHERE cpf_cnpj = $1 \nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $json.body.cpf }}\n{{ $json.body.unidade }}\n{{ $json.body.condominio }}"
+        }
+      },
+      "id": "c6efbf13-21af-4eb3-9d0b-c9ef12d2331d",
+      "name": "Postgres - Localizar Morador",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -528,
+        -128
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "2rvbvdgNESaUTWUz",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://financeiro.condomob.net/ws/chatbot/cobranca/latest/cpfCnpj",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "cpfCnpj",
+              "value": "={{ $node[\"Postgres - Localizar Morador\"].json[\"cpf_cnpj\"] }}"
+            },
+            {
+              "name": "unidade",
+              "value": "={{ $node[\"Postgres - Localizar Morador\"].json[\"id_unidade\"] }}"
+            },
+            {
+              "name": "condominio",
+              "value": "={{ $node[\"Postgres - Localizar Morador\"].json[\"id_condominio\"] }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "df04f6ab80748da53d19e834b08927a7c33abf84"
+            },
+            {
+              "name": "administradora",
+              "value": "5445119266258944"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "814a294a-80da-4bf8-a412-b96692f92214",
+      "name": "API - Gerar Boleto Atual",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -304,
+        -128
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://backend.botconversa.com.br/api/v1/webhook/send_message/8f4d041e-6454-496b-86ff-7c1d52674481/",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "API-KEY",
+              "value": "8f4d041e-6454-496b-86ff-7c1d52674481"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"key\": \"{{ $node[\"Webhook - BotConversa\"].json[\"body\"][\"key\"] }}\",\n  \"nome\": \"{{ $node[\"Postgres - Localizar Morador\"].json[\"nome_morador\"] }}\",\n  \"unidade\": \"{{ $node[\"Postgres - Localizar Morador\"].json[\"id_unidade\"] }}\",\n  \"link\": \"{{ $node[\"API - Gerar Boleto Atual\"].json[\"link\"] }}\"\n}",
+        "options": {}
+      },
+      "id": "f248895b-5585-4874-aea2-c07f973f6ef6",
+      "name": "BotConversa - Enviar Resposta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        240,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "be1c590a-dd74-4648-a9c8-b895209b5ee3",
+              "name": "nome",
+              "value": "={{ $node[\"Postgres - Localizar Morador\"].json[\"nome_morador\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "6ef29125-9ab5-460f-90b3-12c8d3ad6eb4",
+              "name": "unidade",
+              "value": "={{ $node[\"Postgres - Localizar Morador\"].json[\"id_unidade\"] }}",
+              "type": "string"
+            },
+            {
+              "id": "51feb529-5ed4-4c81-adbf-8f7d00975edd",
+              "name": "link",
+              "value": "={{ $node[\"API - Gerar Boleto Atual\"].json[\"link\"] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -96,
+        -128
+      ],
+      "id": "2a6dd73a-14e9-430a-b246-b4ec61318dae",
+      "name": "Edit Fields"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - BotConversa": {
+      "main": [
+        [
+          {
+            "node": "Postgres - Localizar Morador",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres - Localizar Morador": {
+      "main": [
+        [
+          {
+            "node": "API - Gerar Boleto Atual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API - Gerar Boleto Atual": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "815835ce-16c7-479c-b9b4-c4a2369259e1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4257ef91544b184bce5bc2afdfe2bdc60fb34eb0b131ce418e12e8e2f311d28a"
+  },
+  "id": "imKIaEjiwlDsHSTh",
+  "tags": []
+}

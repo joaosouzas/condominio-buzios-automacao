@@ -1,0 +1,9 @@
+# Arquivo de credenciais — NUNCA versionar
+.env
+
+# Dados do PostgreSQL gerados em tempo de execução
+postgres_data/
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
